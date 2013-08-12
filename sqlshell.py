@@ -101,8 +101,8 @@ class Console(cmd.Cmd):
            Cmd.postloop() is not a stub.
         """
         #Clean up command completion
+        print "Exiting...!!!!"
         cmd.Cmd.postloop(self)
-        print "Exiting..."
 
     def precmd(self, line):
         """ This method is called after the line has been input but before
@@ -129,9 +129,10 @@ class sqlcntrl(Console):
     """Simple command processor example."""
 
     """ based on active state recipe 280500-console-built-with-cmd-object/"""
-    def __init__(self):
+    def __init__(self, db):
         cmd.Cmd.__init__(self)
         homedir = p.expanduser('~')
+        self.db = db
         self.histfile = p.join(homedir, '.sqlshellhistory')
         self.aliasfile = p.join(homedir, '.sqlshellalias')
         self.prompt = ">>"
@@ -141,16 +142,21 @@ class sqlcntrl(Console):
         self.editor = os.environ.get('EDITOR', 'nano')
         self.python = os.environ.get('_', 'python')
 
+    def do_prompt(self, line):
+        """Update the interactive prompt"""
+        self.prompt = line.strip()
+
     def die(self):
-        print 'exiting!'
-        sys.exit(0)
+        print 'die exiting!'
+        self.do_EOF()
+        #sys.exit(0)
 
     def default(self, line):
         self.process(line)
 
     def query(self, line):
         try:
-            cur = db.cursor()
+            cur = self.db.cursor()
             cur.execute("%s" % (line,))
             return cur.fetchall()
         #yes this is heavy handed I have the idea
@@ -235,6 +241,10 @@ class sqlcntrl(Console):
     def do_py(self, line):
         subprocess.call([self.python])
 
+    def do_commit(self, line):
+        print 'committing changes'
+        self.db.commit()
+
     def do_edit(self, line):
         with tempfile.NamedTemporaryFile(suffix=".tmp") as tfile:
             tfile.write(line)
@@ -244,11 +254,12 @@ class sqlcntrl(Console):
             self.process(command)
 
     def do_EOF(self, line):
+        self.db.close()
         return True
 
 
 def main():
-    sqlcntrl().cmdloop()
+    sqlcntrl(db).cmdloop()
 if __name__ == '__main__':
     try:
         main()
