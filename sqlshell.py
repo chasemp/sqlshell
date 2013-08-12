@@ -56,7 +56,6 @@ class Console(cmd.Cmd):
         #in the doc string
         cmd.Cmd.do_help(self, args)
 
-    #Override methods in Cmd object ##
     def preloop(self):
         """Initialization before prompting user for commands.
            Despite the claims in the Cmd documentaion,
@@ -66,6 +65,17 @@ class Console(cmd.Cmd):
         cmd.Cmd.preloop(self)
 
         self._hist = []
+        self._alias = {}
+        #Attempt to establish aliases
+        try:
+            with open(self.aliasfile) as f:
+                alist = f.read().strip().split('\n')
+                for alias in alist:
+                    key, value = alias.split('=')
+                    self._alias[key.strip()] = value.strip()
+        except:
+            pass
+
         #Attempt to read in stored history
         try:
             with open(self.histfile) as f:
@@ -112,9 +122,11 @@ class sqlcntrl(Console):
     """Simple command processor example."""
 
     """ based on active state recipe 280500-console-built-with-cmd-object/"""
-    def __init__(self, histfile):
-        cmd.Cmd.__init__(self, histfile)
-        self.histfile = histfile
+    def __init__(self):
+        cmd.Cmd.__init__(self)
+        homedir = p.expanduser('~')
+        self.histfile = p.join(homedir, '.sqlshellhistory')
+        self.aliasfile = p.join(homedir, '.sqlshellalias')
         self.prompt = "> "
         self.intro = "sqlshell"
         self.exitcmds = ['q', 'quit', 'exit', 'e']
@@ -140,6 +152,10 @@ class sqlcntrl(Console):
     def default(self, line):
         if any(map(lambda c: c == line, self.exitcmds)):
             self.die()
+
+        aliasmatch = self._alias.get(line.split()[0], None)
+        if aliasmatch:
+            line = aliasmatch
 
         fout = False
         if any(map(lambda c: c in line, self.redirect)):
@@ -179,14 +195,16 @@ class sqlcntrl(Console):
             f.write(str(content).strip())
             f.write('\n')
 
+    def do_short(self, line):
+        for k, v in self._alias.iteritems():
+            print k, '-->', v
+
     def do_EOF(self, line):
         return True
 
 
 def main():
-    home = p.expanduser('~')
-    history_file = p.join(home, '.sqlshellhistory')
-    sqlcntrl(history_file).cmdloop()
+    sqlcntrl().cmdloop()
 
 if __name__ == '__main__':
     try:
