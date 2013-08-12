@@ -17,6 +17,11 @@ db = MySQLdb.connect(host="localhost",
                      db="testdb")
 
 
+def runShell(cmd):
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
+    return p.stdout.read().strip()
+
+
 class Console(cmd.Cmd):
 
     histfile = None
@@ -133,7 +138,8 @@ class sqlcntrl(Console):
         self.intro = "sqlshell"
         self.exitcmds = ['q', 'quit', 'exit', 'e']
         self.redirect = ['>', '>>', 'tee']
-        self.editor = os.environ.get('EDITOR','nano')
+        self.editor = os.environ.get('EDITOR', 'nano')
+        self.python = os.environ.get('_', 'python')
 
     def die(self):
         print 'exiting!'
@@ -185,6 +191,11 @@ class sqlcntrl(Console):
                 mode = 'w'
                 line, fout = line.split('>')
 
+        pipe = False
+        if '|' in line:
+            pipe = True
+            line, shcmd = line.split('|')
+
         line = line.strip()
         result = self.query(line.strip())
 
@@ -198,8 +209,19 @@ class sqlcntrl(Console):
             if not echo:
                 return
 
-        for row in result:
-            print row
+        out = self.to_text(result)
+        if pipe:
+            shell = 'echo "%s" | %s' % (str(out), shcmd)
+            out = runShell(shell)
+
+        print out
+
+    def to_text(self, param):
+        txt = ''
+        for i in param:
+            txt += str(i)
+            txt += '\n'
+        return txt
 
     def to_file(self, outfile, content, mode):
         with open(outfile, mode) as f:
@@ -210,13 +232,15 @@ class sqlcntrl(Console):
         for k, v in self._alias.iteritems():
             print k, '-->', v
 
+    def do_py(self, line):
+        subprocess.call([self.python])
+
     def do_edit(self, line):
         with tempfile.NamedTemporaryFile(suffix=".tmp") as tfile:
             tfile.write(line)
             tfile.flush()
             subprocess.call([self.editor, tfile.name])
             command = open(tfile.name).read().strip()
-            print 'c', command
             self.process(command)
 
     def do_EOF(self, line):
