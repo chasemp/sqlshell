@@ -86,7 +86,7 @@ class Console(cmd.Cmd):
         """
         try:
             with open(self.histfile, 'w') as f:
-                for c in set(self._hist):
+                for c in set(self._hist[:100]):
                     if not c:
                         continue
                     elif c in self.exitcmds:
@@ -107,7 +107,9 @@ class Console(cmd.Cmd):
             before execution (for example, variable substitution) do it here.
         """
         if line:
-            self._hist += [line.strip()]
+            #self._hist += [line.strip()]
+            if line not in self._hist:
+                self._hist.append(line)
         return line
 
     def postcmd(self, stop, line):
@@ -129,6 +131,7 @@ class sqlcntrl(Console):
     def __init__(self, db):
         cmd.Cmd.__init__(self)
         homedir = p.expanduser('~')
+        self.active = True
         self.db = db
         self.histfile = p.join(homedir, '.sqlshellhistory')
         self.aliasfile = p.join(homedir, '.sqlshellalias')
@@ -153,6 +156,12 @@ class sqlcntrl(Console):
         return -1
 
     def default(self, line):
+        #any valid exit command is handled
+        if any(map(lambda c: c == line, self.exitcmds)):
+            return self.die()
+        #any valid history command is handled
+        if any(map(lambda c: c == line, self.histcmds)):
+            return self.show_history()
         print self.process(line)
 
     def do_less(self, line):
@@ -173,12 +182,6 @@ class sqlcntrl(Console):
             return
 
     def process(self, line):
-        #any valid exit command is handled
-        if any(map(lambda c: c == line, self.exitcmds)):
-            return self.die()
-        #any valid history command is handled
-        if any(map(lambda c: c == line, self.histcmds)):
-            return self.show_history()
         #allow use of alias commands
         aliasmatch = self._alias.get(line.split()[0], None)
         if aliasmatch:
