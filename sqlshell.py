@@ -9,23 +9,21 @@ try:
 except ImporError:
     pass
 
-db = MySQLdb.connect(host="localhost", # your host, usually localhost
-                     user="root", # your username
-                      passwd="fella", # your password
-                      db="testdb") # name of the data base
+db = MySQLdb.connect(host="localhost",
+                     user="root",
+                     passwd="fella",
+                     db="testdb")
+
 
 class Console(cmd.Cmd):
 
     histfile = None
 
     def do_history(self, args):
-        self.do_hist(args)        
+        self.do_hist(args)
 
     def do_hist(self, args):
         """Print a list of commands that have been entered"""
-        if args:
-           print type(args)
-           print 'args!'
         for h in self._hist:
             if args:
                 for oldcmd in self._hist:
@@ -38,7 +36,7 @@ class Console(cmd.Cmd):
         """Exits from the console"""
         return -1
 
-    ## Command definitions to support Cmd object functionality ##
+    #Command definitions to support Cmd object functionality
     def do_EOF(self, args):
         """Exit on system end of file character"""
         return self.do_exit(args)
@@ -49,21 +47,26 @@ class Console(cmd.Cmd):
 
     def do_help(self, args):
         """Get help on commands
-           'help' or '?' with no arguments prints a list of commands for which help is available
+           'help' or '?' with no arguments prints a list of commands
+                         for which help is available.
+
            'help <command>' or '? <command>' gives help on <command>
         """
-        ## The only reason to define this method is for the help text in the doc string
+        #The only reason to define this method is for the help text
+        #in the doc string
         cmd.Cmd.do_help(self, args)
 
-    ## Override methods in Cmd object ##
+    #Override methods in Cmd object ##
     def preloop(self):
         """Initialization before prompting user for commands.
-           Despite the claims in the Cmd documentaion, Cmd.preloop() is not a stub.
+           Despite the claims in the Cmd documentaion,
+           Cmd.preloop() is not a stub.
         """
-        cmd.Cmd.preloop(self)   ## sets up command completion
-        self._hist    = []      ## No history yet
+        # sets up command completion
+        cmd.Cmd.preloop(self)
+
+        self._hist = []
         #Attempt to read in stored history
-        #if not no big deal
         try:
             with open(self.histfile) as f:
                 for h in f.read().strip().split('\n'):
@@ -71,14 +74,17 @@ class Console(cmd.Cmd):
         except:
             pass
 
-        self._locals  = {}      ## Initialize execution namespace for user
+        #Initialize execution namespace for user
+        self._locals = {}
         self._globals = {}
 
     def postloop(self):
         """Take care of any unfinished business.
-           Despite the claims in the Cmd documentaion, Cmd.postloop() is not a stub.
+           Despite the claims in the Cmd documentaion,
+           Cmd.postloop() is not a stub.
         """
-        cmd.Cmd.postloop(self)   ## Clean up command completion
+        #Clean up command completion
+        cmd.Cmd.postloop(self)
         print "Exiting..."
 
     def precmd(self, line):
@@ -87,16 +93,17 @@ class Console(cmd.Cmd):
             before execution (for example, variable substitution) do it here.
         """
         if line:
-            self._hist += [ line.strip() ]
+            self._hist += [line.strip()]
         return line
 
     def postcmd(self, stop, line):
-        """If you want to stop the console, return something that evaluates to true.
+        """If you want to stop the console,
+           return something that evaluates to true.
            If you want to do some post command processing, do it here.
         """
         return stop
 
-    def emptyline(self):    
+    def emptyline(self):
         """return new prompt on empty line"""
         pass
 
@@ -109,7 +116,7 @@ class sqlcntrl(Console):
         cmd.Cmd.__init__(self, histfile)
         self.histfile = histfile
         self.prompt = "> "
-        self.intro  = "sqlshell"
+        self.intro = "sqlshell"
         self.exitcmds = ['q', 'quit', 'exit', 'e']
         self.redirect = ['>', '>>', 'tee']
 
@@ -119,7 +126,7 @@ class sqlcntrl(Console):
 
     def query(self, line):
         try:
-            cur = db.cursor() 
+            cur = db.cursor()
             cur.execute("%s" % (line,))
             return cur.fetchall()
         #yes this is heavy handed I have the idea
@@ -128,6 +135,7 @@ class sqlcntrl(Console):
         #but errors are always passed up
         except Exception, e:
             print e.__class__, ":", str(e)
+            return
 
     def default(self, line):
         if any(map(lambda c: c == line, self.exitcmds)):
@@ -153,6 +161,10 @@ class sqlcntrl(Console):
         line = line.strip()
         result = self.query(line.strip())
 
+        #discard None type returns, etc
+        if not result:
+            return
+
         if fout:
             fout = fout.strip()
             self.to_file(fout, result, mode)
@@ -170,9 +182,10 @@ class sqlcntrl(Console):
     def do_EOF(self, line):
         return True
 
+
 def main():
     home = p.expanduser('~')
-    history_file =  p.join(home, '.sqlshellhistory')
+    history_file = p.join(home, '.sqlshellhistory')
     sqlcntrl(history_file).cmdloop()
 
 if __name__ == '__main__':
