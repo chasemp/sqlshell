@@ -15,11 +15,8 @@ db = MySQLdb.connect(host="localhost", # your host, usually localhost
                       db="testdb") # name of the data base
 
 class Console(cmd.Cmd):
-    """ based on active state recipe 280500-console-built-with-cmd-object/"""
-    def __init__(self):
-        cmd.Cmd.__init__(self)
-        self.prompt = "> "
-        self.intro  = "sqlshell"
+
+    histfile = None
 
     def do_history(self, args):
         self.do_hist(args)        
@@ -65,6 +62,15 @@ class Console(cmd.Cmd):
         """
         cmd.Cmd.preloop(self)   ## sets up command completion
         self._hist    = []      ## No history yet
+        #Attempt to read in stored history
+        #if not no big deal
+        try:
+            with open(self.histfile) as f:
+                for h in f.read().strip().split('\n'):
+                    self._hist.append(h)
+        except:
+            pass
+
         self._locals  = {}      ## Initialize execution namespace for user
         self._globals = {}
 
@@ -80,7 +86,8 @@ class Console(cmd.Cmd):
             it has been interpreted. If you want to modifdy the input line
             before execution (for example, variable substitution) do it here.
         """
-        self._hist += [ line.strip() ]
+        if line:
+            self._hist += [ line.strip() ]
         return line
 
     def postcmd(self, stop, line):
@@ -90,24 +97,21 @@ class Console(cmd.Cmd):
         return stop
 
     def emptyline(self):    
-        """Do nothing on empty input line"""
+        """return new prompt on empty line"""
         pass
-
-    def default(self, line):       
-        """Called on an input line when the command prefix is not recognized.
-           In that case we execute the line as Python code.
-        """
-        try:
-            exec(line) in self._locals, self._globals
-        except Exception, e:
-            print e.__class__, ":", e
 
 
 class sqlcntrl(Console):
     """Simple command processor example."""
 
-    exitcmds = ['q', 'quit', 'exit', 'e']
-    redirects = ['>', '>>']
+    """ based on active state recipe 280500-console-built-with-cmd-object/"""
+    def __init__(self, histfile):
+        cmd.Cmd.__init__(self, histfile)
+        self.histfile = histfile
+        self.prompt = "> "
+        self.intro  = "sqlshell"
+        self.exitcmds = ['q', 'quit', 'exit', 'e']
+        self.redirect = ['>', '>>', 'tee']
 
     def die(self):
         print 'exiting!'
@@ -122,38 +126,54 @@ class sqlcntrl(Console):
         #that problems with SQL parsing a command should
         #never exit here just like for standard MySQL client
         #but errors are always passed up
-        except Exception as e:
-             print 'ERROR:', str(e)
+        except Exception, e:
+            print e.__class__, ":", str(e)
 
     def default(self, line):
-        fout = None
-	
         if any(map(lambda c: c == line, self.exitcmds)):
             self.die()
 
-        if any(map(lambda c: c in line, self.redirects)):
-            print 'redirect!'
+        fout = False
+        if any(map(lambda c: c in line, self.redirect)):
+            fout = True
 
-        if '>' in line:
-            line, fout = line.split('>')
-
-        result = self.query(line.strip())
-        print type(result)
         if fout:
-            with open(fout.strip(), 'w') as f:
-                f.write(str(result))
-                f.write('\n')
+            echo = False
+            if '>>' in line:
+                mode = 'a'
+                line, fout = line.split('>>')
+            elif 'tee' in line:
+                echo = True
+                mode = 'a'
+                line, fout = line.split('tee')
+            else:
+                mode = 'w'
+                line, fout = line.split('>')
+
+        line = line.strip()
+        result = self.query(line.strip())
+
+        if fout:
+            fout = fout.strip()
+            self.to_file(fout, result, mode)
+            if not echo:
+                return
 
         for row in result:
             print row
+
+    def to_file(self, outfile, content, mode):
+        with open(outfile, mode) as f:
+            f.write(str(content).strip())
+            f.write('\n')
 
     def do_EOF(self, line):
         return True
 
 def main():
     home = p.expanduser('~')
-    print p.join(home, '.sqlshellhistory')
-    sqlcntrl().cmdloop()
+    history_file =  p.join(home, '.sqlshellhistory')
+    sqlcntrl(history_file).cmdloop()
 
 if __name__ == '__main__':
     try:
