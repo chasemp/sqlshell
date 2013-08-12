@@ -4,6 +4,8 @@ import MySQLdb
 import cmd
 import os.path as p
 import sys
+import tempfile
+import subprocess
 try:
     import readline
 except ImporError:
@@ -127,14 +129,18 @@ class sqlcntrl(Console):
         homedir = p.expanduser('~')
         self.histfile = p.join(homedir, '.sqlshellhistory')
         self.aliasfile = p.join(homedir, '.sqlshellalias')
-        self.prompt = "> "
+        self.prompt = ">>"
         self.intro = "sqlshell"
         self.exitcmds = ['q', 'quit', 'exit', 'e']
         self.redirect = ['>', '>>', 'tee']
+        self.editor = os.environ.get('EDITOR','nano')
 
     def die(self):
         print 'exiting!'
         sys.exit(0)
+
+    def default(self, line):
+        self.process(line)
 
     def query(self, line):
         try:
@@ -149,15 +155,20 @@ class sqlcntrl(Console):
             print e.__class__, ":", str(e)
             return
 
-    def default(self, line):
+    def process(self, line):
+        #any valid exit command is handled
         if any(map(lambda c: c == line, self.exitcmds)):
             self.die()
 
+        #allow use of alias commands
         aliasmatch = self._alias.get(line.split()[0], None)
         if aliasmatch:
-            line = aliasmatch
+            #$@ in bash script type behavior
+            dollarall = ' '.join(line.split(' ')[1:])
+            line = aliasmatch + ' ' + dollarall
 
         fout = False
+        #determine command redirect state
         if any(map(lambda c: c in line, self.redirect)):
             fout = True
 
@@ -199,13 +210,21 @@ class sqlcntrl(Console):
         for k, v in self._alias.iteritems():
             print k, '-->', v
 
+    def do_edit(self, line):
+        with tempfile.NamedTemporaryFile(suffix=".tmp") as tfile:
+            tfile.write(line)
+            tfile.flush()
+            subprocess.call([self.editor, tfile.name])
+            command = open(tfile.name).read().strip()
+            print 'c', command
+            self.process(command)
+
     def do_EOF(self, line):
         return True
 
 
 def main():
     sqlcntrl().cmdloop()
-
 if __name__ == '__main__':
     try:
         main()
