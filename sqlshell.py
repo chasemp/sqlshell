@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import os
+import pydoc
 import MySQLdb
 import cmd
 import os.path as p
@@ -152,13 +153,11 @@ class sqlcntrl(Console):
         return -1
 
     def default(self, line):
-        #any valid exit command is handled
-        if any(map(lambda c: c == line, self.exitcmds)):
-            return self.die()
-        #any valid history command is handled
-        if any(map(lambda c: c == line, self.histcmds)):
-            return self.show_history()
-        self.process(line)
+        print self.process(line)
+
+    def do_less(self, line):
+        output = self.process(line)
+        pydoc.pager(output)
 
     def query(self, line):
         try:
@@ -174,6 +173,12 @@ class sqlcntrl(Console):
             return
 
     def process(self, line):
+        #any valid exit command is handled
+        if any(map(lambda c: c == line, self.exitcmds)):
+            return self.die()
+        #any valid history command is handled
+        if any(map(lambda c: c == line, self.histcmds)):
+            return self.show_history()
         #allow use of alias commands
         aliasmatch = self._alias.get(line.split()[0], None)
         if aliasmatch:
@@ -222,7 +227,7 @@ class sqlcntrl(Console):
             shell = 'echo "%s" | %s' % (str(out), shcmd)
             out = runShell(shell)
 
-        print out
+        return out
 
     def to_text(self, param):
         txt = ''
