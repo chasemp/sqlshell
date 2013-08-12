@@ -26,27 +26,10 @@ class Console(cmd.Cmd):
 
     histfile = None
 
-    def do_history(self, args):
-        self.do_hist(args)
-
-    def do_hist(self, args):
+    def show_history(self):
         """Print a list of commands that have been entered"""
-        for h in self._hist:
-            if args:
-                for oldcmd in self._hist:
-                    if oldcmd in h:
-                        print h
-            else:
-                print h
-
-    def do_exit(self, args):
-        """Exits from the console"""
-        return -1
-
-    #Command definitions to support Cmd object functionality
-    def do_EOF(self, args):
-        """Exit on system end of file character"""
-        return self.do_exit(args)
+        for i, h in enumerate(self._hist):
+            print i, h
 
     def do_shell(self, args):
         """Pass command to a system shell when line begins with '!'"""
@@ -100,8 +83,21 @@ class Console(cmd.Cmd):
            Despite the claims in the Cmd documentaion,
            Cmd.postloop() is not a stub.
         """
+        try:
+            with open(self.histfile, 'w') as f:
+                for c in set(self._hist):
+                    if not c:
+                        continue
+                    elif c in self.exitcmds:
+                        continue
+                    elif c in self.histcmds:
+                        continue
+                    else:
+                        f.write(c + '\n')
+        except:
+            pass
+
         #Clean up command completion
-        print "Exiting...!!!!"
         cmd.Cmd.postloop(self)
 
     def precmd(self, line):
@@ -137,7 +133,8 @@ class sqlcntrl(Console):
         self.aliasfile = p.join(homedir, '.sqlshellalias')
         self.prompt = ">>"
         self.intro = "sqlshell"
-        self.exitcmds = ['q', 'quit', 'exit', 'e']
+        self.exitcmds = ['q', 'quit', 'exit', 'e', 'end']
+        self.histcmds = ['h', 'hist', 'history']
         self.redirect = ['>', '>>', 'tee']
         self.editor = os.environ.get('EDITOR', 'nano')
         self.python = os.environ.get('_', 'python')
@@ -147,11 +144,20 @@ class sqlcntrl(Console):
         self.prompt = line.strip()
 
     def die(self):
-        print 'die exiting!'
-        self.do_EOF()
-        #sys.exit(0)
+        try:
+            self.db.close()
+        except:
+            pass
+        print 'bye'
+        return -1
 
     def default(self, line):
+        #any valid exit command is handled
+        if any(map(lambda c: c == line, self.exitcmds)):
+            return self.die()
+        #any valid history command is handled
+        if any(map(lambda c: c == line, self.histcmds)):
+            return self.show_history()
         self.process(line)
 
     def query(self, line):
@@ -168,10 +174,6 @@ class sqlcntrl(Console):
             return
 
     def process(self, line):
-        #any valid exit command is handled
-        if any(map(lambda c: c == line, self.exitcmds)):
-            self.die()
-
         #allow use of alias commands
         aliasmatch = self._alias.get(line.split()[0], None)
         if aliasmatch:
@@ -235,6 +237,7 @@ class sqlcntrl(Console):
             f.write('\n')
 
     def do_short(self, line):
+        """"show defined aliases"""
         for k, v in self._alias.iteritems():
             print k, '-->', v
 
@@ -254,7 +257,6 @@ class sqlcntrl(Console):
             self.process(command)
 
     def do_EOF(self, line):
-        self.db.close()
         return True
 
 
